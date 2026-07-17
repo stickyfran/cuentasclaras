@@ -8,7 +8,7 @@ import QRShareModal from './components/QRShareModal';
 import confetti from 'canvas-confetti';
 import { 
   Users, Plus, Trash2, Share2, QrCode, RefreshCw, LogIn, 
-  DollarSign, ArrowRight, UserPlus, Calendar, Info, CheckCircle2, AlertTriangle, ChevronRight, Moon, Sun
+  DollarSign, ArrowRight, UserPlus, Calendar, Info, CheckCircle2, AlertTriangle, ChevronDown, Moon, Sun
 } from 'lucide-react';
 
 export default function App() {
@@ -260,7 +260,6 @@ export default function App() {
     });
   };
 
-  // Quick helper to fill split equally among members as placeholders
   const handleSplitTypeChange = (type) => {
     setExpenseSplitType(type);
     if (type === 'custom' && expenseAmount) {
@@ -273,52 +272,107 @@ export default function App() {
     }
   };
 
+  const claimedMember = members.find(m => m.id === claimedUserId);
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 md:py-10 flex flex-col min-h-screen">
+    <div className="max-w-6xl mx-auto px-4 py-4 md:py-8 flex flex-col min-h-screen">
       {/* Top Banner / Navbar */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <header className="glass-premium rounded-2xl p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Left Side: Brand Logo & Local Identity */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/20">
-            <span className="text-slate-950 font-black text-xl tracking-tighter">Y</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center shadow-lg shadow-brand-500/20">
+              <span className="text-slate-950 font-black text-lg tracking-tighter">Y</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-1">
+                Yupana
+              </h1>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white font-sans flex items-center gap-1.5">
-              Yupana <span className="text-xs bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-full border border-brand-500/20">PWA</span>
-            </h1>
-            <p className="text-xs text-slate-400">Gastos divididos, cuentas claras. Offline-first.</p>
-          </div>
+
+          {/* Local Identity Pill (Where "Yupana" branding is) */}
+          <div className="h-5 w-px bg-slate-800 hidden sm:block"></div>
+          
+          {activeGroupId && (
+            <div className="flex items-center">
+              {claimedUserId ? (
+                <button
+                  onClick={() => setShowClaimModal(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold rounded-full hover:bg-brand-500/20 transition-all"
+                  title="Haz clic para cambiar de usuario"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
+                  <span className="truncate max-w-[80px]">{claimedMember?.name || 'Cargando...'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowClaimModal(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-bold rounded-full hover:bg-yellow-500/20 transition-all"
+                >
+                  <LogIn className="w-3 h-3" />
+                  ¿Quién eres?
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Action Header controls */}
+        {/* Center: Groups selection dropdown & creation (in header) */}
+        <div className="flex items-center gap-2 max-w-xs w-full md:w-auto">
+          <div className="relative flex-1 md:w-56">
+            <select
+              value={activeGroupId || ''}
+              onChange={e => setActiveGroupId(e.target.value)}
+              className="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl pl-3.5 pr-8 py-2 text-sm text-slate-200 font-semibold appearance-none focus:outline-none focus:border-brand-500/50 transition-all cursor-pointer"
+            >
+              <option value="" disabled>Selecciona un grupo...</option>
+              {groups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          <button
+            onClick={() => setShowAddGroupModal(true)}
+            className="w-9 h-9 bg-slate-900 border border-slate-800 hover:border-slate-700 text-brand-400 rounded-xl flex items-center justify-center transition-all hover:bg-slate-850 shrink-0"
+            title="Crear nuevo grupo"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Right Side: Cloud Sync & P2P QR */}
         <div className="flex items-center gap-2 flex-wrap">
-          {activeGroup && (
+          {activeGroupId && (
             <button
               onClick={() => setShowQRModal(true)}
-              className="flex items-center gap-2 px-3.5 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition-all hover:bg-slate-850"
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
               title="Compartir mediante QR o escanear uno existente"
             >
-              <QrCode className="w-4 h-4 text-slate-400" />
+              <QrCode className="w-3.5 h-3.5 text-slate-450" />
               <span>QR P2P</span>
             </button>
           )}
 
-          {activeGroup && (
+          {activeGroupId && (
             <button
               onClick={handleCloudSync}
               disabled={syncStatus.loading}
-              className="flex items-center gap-2 px-3.5 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition-all hover:bg-slate-850"
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-955/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
               title="Guardar en la nube y copiar link"
             >
-              <Share2 className={`w-4 h-4 text-slate-400 ${syncStatus.loading ? 'animate-spin' : ''}`} />
-              <span>Sincronizar Nube</span>
+              <Share2 className={`w-3.5 h-3.5 text-slate-450 ${syncStatus.loading ? 'animate-spin' : ''}`} />
+              <span>Nube</span>
             </button>
           )}
 
           <button
             onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition-all hover:bg-slate-850"
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-955/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
           >
-            <RefreshCw className="w-4 h-4 text-slate-400" />
+            <RefreshCw className="w-3.5 h-3.5 text-slate-450" />
             <span>Importar</span>
           </button>
         </div>
@@ -338,290 +392,210 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Sidebar - Groups List */}
-        <aside className="lg:col-span-3 flex flex-col gap-4">
-          <div className="glass-premium rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-bold text-slate-300 text-sm tracking-wider uppercase">Mis Grupos</h2>
-              <button
-                onClick={() => setShowAddGroupModal(true)}
-                className="w-7 h-7 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg flex items-center justify-center transition-all"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
+      {/* Main Single Column Content (Sidebar Removed) */}
+      <main className="space-y-6">
+        {activeGroup ? (
+          <>
+            {/* Group Overview Card */}
+            <section className="glass-premium rounded-2xl p-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-            <div className="space-y-1 max-h-[300px] lg:max-h-none overflow-y-auto pr-1">
-              {groups.length === 0 ? (
-                <div className="text-center py-6 text-slate-500 text-xs">
-                  Aún no tienes grupos. Crea uno arriba.
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 mb-5">
+                <div>
+                  <h2 className="text-3xl font-extrabold text-white tracking-tight">{activeGroup.name}</h2>
+                  <p className="text-slate-400 text-xs mt-1 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" />
+                    Creado el {new Date(activeGroup.createdAt).toLocaleDateString()} 
+                    {activeGroup.syncedAt && ` • Sincronizado hace poco`}
+                  </p>
                 </div>
-              ) : (
-                groups.map(g => (
-                  <button
-                    key={g.id}
-                    onClick={() => setActiveGroupId(g.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm font-semibold transition-all border ${
-                      g.id === activeGroupId
-                        ? 'bg-brand-500/10 border-brand-500/30 text-brand-300'
-                        : 'bg-transparent border-transparent text-slate-400 hover:bg-slate-900/50 hover:text-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <Users className="w-4 h-4 shrink-0" />
-                      <span className="truncate">{g.name}</span>
-                    </div>
-                    <ChevronRight className={`w-4 h-4 shrink-0 transition-all ${g.id === activeGroupId ? 'rotate-90 text-brand-400' : 'opacity-0'}`} />
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
 
-          {/* Local Session Identity Card */}
-          {activeGroup && (
-            <div className="glass-premium rounded-2xl p-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Identidad Local</span>
-                <button
-                  onClick={() => setShowClaimModal(true)}
-                  className="text-xs text-brand-400 hover:text-brand-300 font-bold flex items-center gap-1"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  Cambiar
-                </button>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400 font-semibold">Total Gastado</p>
+                    <p className="text-2xl font-black text-white tracking-tight">
+                      ${totalSpent.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {claimedUserId ? (
-                <div className="flex items-center gap-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
-                  <div className="w-8 h-8 rounded-lg bg-brand-500 text-slate-950 font-bold flex items-center justify-center text-sm">
-                    {members.find(m => m.id === claimedUserId)?.name.charAt(0).toUpperCase() || '?'}
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400">Identificado como</p>
-                    <p className="text-sm font-bold text-slate-200">
-                      {members.find(m => m.id === claimedUserId)?.name || 'Cargando...'}
-                    </p>
-                  </div>
+              {/* Balances Grid */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Balances del Grupo</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {memberBalances.map(mb => {
+                    const isNegative = mb.net < -0.01;
+                    const isPositive = mb.net > 0.01;
+                    return (
+                      <div key={mb.id} className="p-4 bg-slate-900/40 border border-slate-800/60 rounded-xl flex flex-col justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-300">
+                            {mb.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-semibold text-slate-200 text-sm truncate">{mb.name}</span>
+                        </div>
+
+                        <div className="mt-2">
+                          <span className="text-[10px] text-slate-500 font-bold block uppercase">Balance Neto</span>
+                          <span className={`text-lg font-bold tracking-tight ${
+                            isPositive ? 'text-brand-400' : isNegative ? 'text-orange-400' : 'text-slate-400'
+                          }`}>
+                            {isPositive ? '+' : ''}${mb.net.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        
+                        <div className="text-[10px] text-slate-500 flex justify-between">
+                          <span>Pagó: ${mb.paid.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>
+                          <span>Consumo: ${mb.spent.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ) : (
-                <div className="p-3.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs rounded-xl flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>Debes identificarte antes de poder ingresar nuevos gastos al grupo.</span>
-                  </div>
-                  <button
-                    onClick={() => setShowClaimModal(true)}
-                    className="w-full py-1.5 bg-yellow-500 text-slate-950 hover:bg-yellow-400 font-bold rounded-lg transition-all"
-                  >
-                    Identificarme
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </aside>
+              </div>
+            </section>
 
-        {/* Dashboard Content */}
-        <main className="lg:col-span-9 space-y-6">
-          {activeGroup ? (
-            <>
-              {/* Group overview Card */}
-              <section className="glass-premium rounded-2xl p-6 relative overflow-hidden">
-                {/* Background ambient lighting */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none"></div>
-
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 mb-5">
-                  <div>
-                    <h2 className="text-3xl font-extrabold text-white tracking-tight">{activeGroup.name}</h2>
-                    <p className="text-slate-400 text-xs mt-1 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      Creado el {new Date(activeGroup.createdAt).toLocaleDateString()} 
-                      {activeGroup.syncedAt && ` • Sincronizado hace poco`}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-xs text-slate-400 font-semibold">Total Gastado</p>
-                      <p className="text-2xl font-black text-white tracking-tight">
-                        ${totalSpent.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => setShowAddExpenseModal(true)}
-                      className="px-5 py-3 bg-brand-600 hover:bg-brand-500 text-slate-950 font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-brand-500/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      <Plus className="w-5 h-5" />
-                      Registrar Gasto
-                    </button>
-                  </div>
+            {/* Split Grid for simplified debts & expense list */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              {/* Simplified Debts Box */}
+              <section className="md:col-span-5 glass-premium rounded-2xl p-5 flex flex-col">
+                <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2.5">
+                  <h3 className="font-bold text-slate-200 text-sm tracking-wider uppercase">Deudas Simplificadas</h3>
+                  <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-medium">
+                    {transactions.length} transferencias
+                  </span>
                 </div>
 
-                {/* Balances grid */}
-                <div>
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Balances del Grupo</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {memberBalances.map(mb => {
-                      const isNegative = mb.net < -0.01;
-                      const isPositive = mb.net > 0.01;
+                {transactions.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
+                    <CheckCircle2 className="w-10 h-10 text-brand-400 mb-2 opacity-60" />
+                    <p className="text-slate-300 font-bold text-sm">¡Todos están al día!</p>
+                    <p className="text-slate-500 text-xs mt-1">No hay saldos pendientes de pago.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 flex-1 overflow-y-auto">
+                    {transactions.map((tx, idx) => (
+                      <div 
+                        key={idx} 
+                        className="p-3.5 bg-slate-900/60 border border-slate-800/80 rounded-xl flex items-center justify-between gap-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-bold text-slate-200 text-sm truncate max-w-[80px]">{tx.fromName}</span>
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span className="font-bold text-slate-200 text-sm truncate max-w-[80px]">{tx.toName}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                          <span className="font-extrabold text-brand-400 text-sm">
+                            ${tx.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          </span>
+                          <button
+                            onClick={() => handleSettleUpTransaction(tx)}
+                            className="px-2.5 py-1.5 bg-brand-500 text-slate-950 hover:bg-brand-400 font-bold text-xs rounded-lg transition-all"
+                          >
+                            Liquidar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Expenses History List */}
+              <section className="md:col-span-7 glass-premium rounded-2xl p-5">
+                <h3 className="font-bold text-slate-200 text-sm tracking-wider uppercase mb-4 border-b border-slate-800 pb-2.5">
+                  Historial de Gastos
+                </h3>
+
+                {activeExpenses.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500 text-xs">
+                    No hay gastos registrados en este grupo todavía.
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                    {activeExpenses.slice().reverse().map(exp => {
+                      const payerName = members.find(m => m.id === exp.paidById)?.name || 'Miembro eliminado';
+                      const isSettlement = exp.description.startsWith('Liquidación:');
                       return (
-                        <div key={mb.id} className="p-4 bg-slate-900/40 border border-slate-800/60 rounded-xl flex flex-col justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-300">
-                              {mb.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="font-semibold text-slate-200 text-sm truncate">{mb.name}</span>
+                        <div 
+                          key={exp.id} 
+                          className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 transition-all ${
+                            isSettlement 
+                              ? 'bg-emerald-950/20 border-emerald-900/40 hover:border-emerald-850'
+                              : 'bg-slate-900/30 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-200 text-sm truncate">{exp.description}</h4>
+                            <p className="text-xs text-slate-500 mt-1">
+                              Pagado por <span className="text-slate-400 font-medium">{payerName}</span> • {new Date(exp.date).toLocaleDateString()}
+                            </p>
+                            {exp.splitType === 'custom' && !isSettlement && (
+                              <span className="inline-block mt-1 text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
+                                División Personalizada
+                              </span>
+                            )}
                           </div>
 
-                          <div className="mt-2">
-                            <span className="text-[10px] text-slate-500 font-bold block uppercase">Balance Neto</span>
-                            <span className={`text-lg font-bold tracking-tight ${
-                              isPositive ? 'text-brand-400' : isNegative ? 'text-orange-400' : 'text-slate-400'
-                            }`}>
-                              {isPositive ? '+' : ''}${mb.net.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-bold text-slate-100 text-base">
+                              ${exp.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                             </span>
-                          </div>
-                          
-                          {/* Mini spent indicator */}
-                          <div className="text-[10px] text-slate-500 flex justify-between">
-                            <span>Pagó: ${mb.paid.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>
-                            <span>Consumo: ${mb.spent.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>
+                            <button
+                              onClick={() => handleDeleteExpense(exp.id)}
+                              className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-800/80 rounded-lg transition-all"
+                              title="Eliminar gasto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                )}
               </section>
-
-              {/* Transactions Simplification & Expenses split layout */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                {/* Simplified Debts Box */}
-                <section className="md:col-span-5 glass-premium rounded-2xl p-5 flex flex-col">
-                  <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2.5">
-                    <h3 className="font-bold text-slate-200 text-sm tracking-wider uppercase">Deudas Simplificadas</h3>
-                    <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-medium">
-                      {transactions.length} transferencias
-                    </span>
-                  </div>
-
-                  {transactions.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
-                      <CheckCircle2 className="w-10 h-10 text-brand-400 mb-2 opacity-60" />
-                      <p className="text-slate-300 font-bold text-sm">¡Todos están al día!</p>
-                      <p className="text-slate-500 text-xs mt-1">No hay saldos pendientes de pago.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5 flex-1 overflow-y-auto">
-                      {transactions.map((tx, idx) => (
-                        <div 
-                          key={idx} 
-                          className="p-3.5 bg-slate-900/60 border border-slate-800/80 rounded-xl flex items-center justify-between gap-2"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-bold text-slate-200 text-sm truncate max-w-[80px]">{tx.fromName}</span>
-                            <ArrowRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                            <span className="font-bold text-slate-200 text-sm truncate max-w-[80px]">{tx.toName}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <span className="font-extrabold text-brand-400 text-sm">
-                              ${tx.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                            </span>
-                            <button
-                              onClick={() => handleSettleUpTransaction(tx)}
-                              className="px-2.5 py-1.5 bg-brand-500 text-slate-950 hover:bg-brand-400 font-bold text-xs rounded-lg transition-all"
-                            >
-                              Liquidar
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-
-                {/* Expenses History List */}
-                <section className="md:col-span-7 glass-premium rounded-2xl p-5">
-                  <h3 className="font-bold text-slate-200 text-sm tracking-wider uppercase mb-4 border-b border-slate-800 pb-2.5">
-                    Historial de Gastos
-                  </h3>
-
-                  {activeExpenses.length === 0 ? (
-                    <div className="text-center py-12 text-slate-500 text-xs">
-                      No hay gastos registrados en este grupo todavía.
-                    </div>
-                  ) : (
-                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                      {activeExpenses.slice().reverse().map(exp => {
-                        const payerName = members.find(m => m.id === exp.paidById)?.name || 'Miembro eliminado';
-                        const isSettlement = exp.description.startsWith('Liquidación:');
-                        return (
-                          <div 
-                            key={exp.id} 
-                            className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 transition-all ${
-                              isSettlement 
-                                ? 'bg-emerald-950/20 border-emerald-900/40 hover:border-emerald-850'
-                                : 'bg-slate-900/30 border-slate-800 hover:border-slate-700'
-                            }`}
-                          >
-                            <div className="min-w-0">
-                              <h4 className="font-bold text-slate-200 text-sm truncate">{exp.description}</h4>
-                              <p className="text-xs text-slate-500 mt-1">
-                                Pagado por <span className="text-slate-400 font-medium">{payerName}</span> • {new Date(exp.date).toLocaleDateString()}
-                              </p>
-                              {exp.splitType === 'custom' && !isSettlement && (
-                                <span className="inline-block mt-1 text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
-                                  División Personalizada
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-3 shrink-0">
-                              <span className="font-bold text-slate-100 text-base">
-                                ${exp.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                              </span>
-                              <button
-                                onClick={() => handleDeleteExpense(exp.id)}
-                                className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-800/80 rounded-lg transition-all"
-                                title="Eliminar gasto"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              </div>
-            </>
-          ) : (
-            <div className="glass-premium rounded-2xl p-10 text-center flex flex-col items-center justify-center">
-              <Users className="w-16 h-16 text-slate-655 mb-4 opacity-50" />
-              <h2 className="text-2xl font-bold text-slate-300">¡Bienvenido a Yupana!</h2>
-              <p className="text-slate-400 text-sm max-w-md mt-2">
-                Para empezar a registrar gastos y dividir cuentas offline, crea un grupo en el menú de la izquierda o importa uno ya existente.
-              </p>
-              <button
-                onClick={() => setShowAddGroupModal(true)}
-                className="mt-6 px-6 py-3 bg-brand-650 hover:bg-brand-600 text-slate-950 font-bold rounded-xl shadow-lg transition-all flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Crear mi Primer Grupo
-              </button>
             </div>
-          )}
-        </main>
-      </div>
+          </>
+        ) : (
+          <div className="glass-premium rounded-2xl p-10 text-center flex flex-col items-center justify-center">
+            <Users className="w-16 h-16 text-slate-600 mb-4 opacity-50" />
+            <h2 className="text-2xl font-bold text-slate-300">¡Bienvenido a Yupana!</h2>
+            <p className="text-slate-400 text-sm max-w-md mt-2">
+              Para empezar a registrar gastos y dividir cuentas offline, crea un grupo en el menú superior o importa uno ya existente.
+            </p>
+            <button
+              onClick={() => setShowAddGroupModal(true)}
+              className="mt-6 px-6 py-3 bg-brand-600 hover:bg-brand-500 text-slate-950 font-bold rounded-xl shadow-lg transition-all flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Crear mi Primer Grupo
+            </button>
+          </div>
+        )}
+      </main>
+
+      {/* Floating Action Button (FAB) Bottom Right - desktop and mobile */}
+      {activeGroupId && (
+        <button
+          onClick={() => {
+            if (!claimedUserId) {
+              setShowClaimModal(true);
+            } else {
+              setShowAddExpenseModal(true);
+            }
+          }}
+          className="fixed bottom-6 right-6 z-40 bg-brand-500 hover:bg-brand-400 text-slate-950 font-black p-4 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-brand-500/20 border border-brand-400/35"
+          title="Registrar nuevo gasto"
+        >
+          <Plus className="w-6 h-6 stroke-[3px]" />
+        </button>
+      )}
 
       {/* FOOTER */}
-      <footer className="mt-auto pt-10 text-center text-xs text-slate-600 border-t border-slate-900/60">
+      <footer className="mt-auto pt-10 pb-4 text-center text-[10px] text-slate-600">
         <p>© {new Date().getFullYear()} Yupana. Código Libre & 100% Offline-First. Tus datos nunca salen de tu dispositivo sin tu consentimiento.</p>
       </footer>
 
