@@ -1,6 +1,6 @@
 import { db } from '../db/db';
 
-const KVDB_BUCKET_URL = 'https://kvdb.io/8xLqT2H1w7vQ6p3A4K7m';
+const FIREBASE_DB_URL = 'https://yupana-sync-default-rtdb.firebaseio.com/groups';
 
 /**
  * Serializes a group and all its members and expenses to a single object.
@@ -101,8 +101,8 @@ export async function uploadGroupToCloud(groupId) {
     syncCode: payload.group.syncCode
   });
 
-  const response = await fetch(`${KVDB_BUCKET_URL}/${groupId}`, {
-    method: 'POST',
+  const response = await fetch(`${FIREBASE_DB_URL}/${groupId}.json`, {
+    method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
     },
@@ -121,15 +121,15 @@ export async function uploadGroupToCloud(groupId) {
  * Validates the 14-day (2 weeks) expiration date.
  */
 export async function downloadGroupFromCloud(groupId) {
-  const response = await fetch(`${KVDB_BUCKET_URL}/${groupId}`);
+  const response = await fetch(`${FIREBASE_DB_URL}/${groupId}.json`);
   if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error('Grupo no encontrado o ha sido eliminado.');
-    }
     throw new Error('Error al descargar los datos de la nube.');
   }
 
   const data = await response.json();
+  if (!data) {
+    throw new Error('Grupo no encontrado o ha sido eliminado de la nube.');
+  }
   
   // Check expiration (14 days = 1,209,600,000 milliseconds)
   const TWO_WEEES_MS = 14 * 24 * 60 * 60 * 1000;

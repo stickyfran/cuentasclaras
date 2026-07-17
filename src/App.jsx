@@ -157,6 +157,18 @@ export default function App() {
         alert(`La suma de las partes (${sum.toFixed(2)}) debe coincidir con el monto total (${amountNum.toFixed(2)}).`);
         return;
       }
+    } else if (expenseSplitType === 'percentage') {
+      splits = members.map(m => ({
+        memberId: m.id,
+        percentage: parseFloat(expenseCustomSplits[m.id] || 0)
+      }));
+
+      // Validate total sum of percentages equals 100
+      const sum = splits.reduce((acc, curr) => acc + curr.percentage, 0);
+      if (Math.abs(sum - 100) > 0.1) {
+        alert(`La suma de los porcentajes (${sum.toFixed(2)}%) debe ser exactamente 100%.`);
+        return;
+      }
     }
 
     await db.expenses.add({
@@ -192,6 +204,20 @@ export default function App() {
     const now = Date.now();
     await db.expenses.update(expenseId, { deleted: 1, updatedAt: now });
     await db.groups.update(activeGroupId, { updatedAt: now });
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!activeGroupId) return;
+    if (!confirm(`¿Estás seguro de que deseas eliminar por completo el grupo "${activeGroup.name}" y todos sus gastos? Esta acción es local y no se puede deshacer.`)) return;
+
+    await db.transaction('rw', [db.groups, db.members, db.expenses], async () => {
+      await db.groups.delete(activeGroupId);
+      await db.members.where('groupId').equals(activeGroupId).delete();
+      await db.expenses.where('groupId').equals(activeGroupId).delete();
+    });
+
+    localStorage.removeItem(`yupana_claimed_${activeGroupId}`);
+    setActiveGroupId(null);
   };
 
   const handleCloudSync = async () => {
@@ -267,6 +293,13 @@ export default function App() {
       const initialSplits = {};
       members.forEach(m => {
         initialSplits[m.id] = share.toFixed(2);
+      });
+      setExpenseCustomSplits(initialSplits);
+    } else if (type === 'percentage') {
+      const share = 100 / members.length;
+      const initialSplits = {};
+      members.forEach(m => {
+        initialSplits[m.id] = share.toFixed(1);
       });
       setExpenseCustomSplits(initialSplits);
     }
@@ -402,7 +435,16 @@ export default function App() {
 
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 mb-5">
                 <div>
-                  <h2 className="text-3xl font-extrabold text-white tracking-tight">{activeGroup.name}</h2>
+                  <h2 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+                    {activeGroup.name}
+                    <button
+                      onClick={handleDeleteGroup}
+                      className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-900/60 rounded-xl transition-all"
+                      title="Eliminar este grupo y todos sus gastos"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </h2>
                   <p className="text-slate-400 text-xs mt-1 flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
                     Creado el {new Date(activeGroup.createdAt).toLocaleDateString()} 
@@ -759,24 +801,35 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => handleSplitTypeChange('equal')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${
+                    className={`flex-1 py-2 text-[11px] font-bold rounded-lg border transition-all ${
                       expenseSplitType === 'equal'
                         ? 'bg-brand-500/10 border-brand-500/50 text-brand-400'
                         : 'bg-transparent border-slate-800 text-slate-400 hover:bg-slate-955'
                     }`}
                   >
-                    Equitativa (Todos)
+                    Equitativa
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSplitTypeChange('custom')}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${
+                    className={`flex-1 py-2 text-[11px] font-bold rounded-lg border transition-all ${
                       expenseSplitType === 'custom'
                         ? 'bg-brand-500/10 border-brand-500/50 text-brand-400'
                         : 'bg-transparent border-slate-800 text-slate-400 hover:bg-slate-955'
                     }`}
                   >
                     Personalizada
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSplitTypeChange('percentage')}
+                    className={`flex-1 py-2 text-[11px] font-bold rounded-lg border transition-all ${
+                      expenseSplitType === 'percentage'
+                        ? 'bg-brand-500/10 border-brand-500/50 text-brand-400'
+                        : 'bg-transparent border-slate-800 text-slate-400 hover:bg-slate-955'
+                    }`}
+                  >
+                    Porcentaje
                   </button>
                 </div>
               </div>
@@ -810,6 +863,49 @@ export default function App() {
                       .reduce((acc, curr) => acc + (parseFloat(curr) || 0), 0)
                       .toFixed(2)}{' '}
                     de {expenseAmount ? parseFloat(expenseAmount).toFixed(2) : '0.00'}
+                  </div>
+                </div>
+              )}
+
+              {expenseSplitType === 'percentage' && (
+                <div className="space-y-2 border-t border-slate-850 pt-3">
+                  <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Porcentajes por Miembro
+                  </span>
+                  {members.map(m => {
+                    const percentage = parseFloat(expenseCustomSplits[m.id] || 0);
+                    const calculatedVal = expenseAmount ? (percentage / 100) * parseFloat(expenseAmount) : 0;
+                    return (
+                      <div key={m.id} className="flex items-center justify-between gap-3 bg-slate-950/60 p-2 rounded-lg border border-slate-850">
+                        <span className="text-xs font-semibold text-slate-300">
+                          {m.name} <span className="text-slate-500 text-[10px]">(${calculatedVal.toFixed(2)})</span>
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            placeholder="0"
+                            value={expenseCustomSplits[m.id] || ''}
+                            onChange={e => {
+                              setExpenseCustomSplits(prev => ({
+                                ...prev,
+                                [m.id]: e.target.value
+                              }));
+                            }}
+                            className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 text-right focus:outline-none focus:border-brand-500/50"
+                          />
+                          <span className="text-xs text-slate-500 font-bold">%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="text-[10px] text-right text-slate-500 font-bold">
+                    Suma de porcentajes:{' '}
+                    {Object.values(expenseCustomSplits)
+                      .reduce((acc, curr) => acc + (parseFloat(curr) || 0), 0)
+                      .toFixed(1)}% / 100%
                   </div>
                 </div>
               )}

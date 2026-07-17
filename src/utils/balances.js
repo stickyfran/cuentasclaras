@@ -51,6 +51,16 @@ export function calculateBalances(members, expenses) {
         }
       });
       // For any member not included in splits, spent remains unchanged
+    } else if (exp.splitType === 'percentage') {
+      // Split as percentage of total amount
+      // e.g. splits = [{ memberId: 'm1', percentage: 25 }, ...]
+      const splits = exp.splits || [];
+      splits.forEach(s => {
+        if (memberBalances[s.memberId]) {
+          const pct = Number(s.percentage) || 0;
+          memberBalances[s.memberId].spent += (pct / 100) * amount;
+        }
+      });
     }
   });
 
