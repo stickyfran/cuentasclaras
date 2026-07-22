@@ -338,83 +338,176 @@ export default function App() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-4 md:py-8 flex flex-col min-h-screen">
-      {/* Top Banner / Navbar */}
-      <header className="glass-premium rounded-2xl p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Left Side: Brand Logo & Local Identity */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center shadow-lg shadow-brand-500/20">
-              <span className="text-slate-950 font-black text-lg tracking-tighter">Y</span>
+      {/* Unified Top Banner / Header */}
+      <header className="glass-premium rounded-2xl p-4 md:p-5 mb-6 space-y-4 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        {/* Top Row: App Brand, User Identity & Global Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Left: Brand Logo & Local Identity */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0">
+                <span className="text-slate-950 font-black text-lg tracking-tighter">Y</span>
+              </div>
+              <div>
+                <h1 className="text-lg font-bold tracking-tight text-white">
+                  Yupana
+                </h1>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-1">
-                Yupana
-              </h1>
-            </div>
+
+            <div className="h-5 w-px bg-slate-800 hidden sm:block"></div>
+            
+            {activeGroupId && (
+              <div className="flex items-center">
+                {claimedUserId ? (
+                  <button
+                    onClick={() => setShowClaimModal(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold rounded-full hover:bg-brand-500/20 transition-all"
+                    title="Haz clic para cambiar de usuario"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
+                    <span className="truncate max-w-[90px]">{claimedMember?.name || 'Cargando...'}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowClaimModal(true)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-bold rounded-full hover:bg-yellow-500/20 transition-all"
+                  >
+                    <LogIn className="w-3 h-3" />
+                    ¿Quién eres?
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Local Identity Pill (Where "Yupana" branding is) */}
-          <div className="h-5 w-px bg-slate-800 hidden sm:block"></div>
-          
-          {activeGroupId && (
-            <div className="flex items-center">
-              {claimedUserId ? (
-                <button
-                  onClick={() => setShowClaimModal(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold rounded-full hover:bg-brand-500/20 transition-all"
-                  title="Haz clic para cambiar de usuario"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
-                  <span className="truncate max-w-[80px]">{claimedMember?.name || 'Cargando...'}</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowClaimModal(true)}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-bold rounded-full hover:bg-yellow-500/20 transition-all"
-                >
-                  <LogIn className="w-3 h-3" />
-                  ¿Quién eres?
-                </button>
-              )}
+          {/* Right Actions: QR P2P, Nube, Importar */}
+          <div className="flex items-center gap-2 flex-wrap ml-auto">
+            {activeGroupId && (
+              <button
+                onClick={() => setShowQRModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/60 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
+                title="Compartir mediante QR o escanear uno existente"
+              >
+                <QrCode className="w-3.5 h-3.5 text-slate-450" />
+                <span className="hidden sm:inline">QR P2P</span>
+              </button>
+            )}
+
+            {activeGroupId && (
+              <button
+                onClick={handleCloudSync}
+                disabled={syncStatus.loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-955/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
+                title="Guardar en la nube y copiar link"
+              >
+                <Share2 className={`w-3.5 h-3.5 text-slate-450 ${syncStatus.loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Nube</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-955/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-slate-450" />
+              <span className="hidden sm:inline">Importar</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Row: Active Group Info & Controls */}
+        {activeGroup ? (
+          <div className="pt-3.5 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5 flex-1 min-w-0">
+              {/* Title & Group Switcher + Quick Actions */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative group inline-flex items-center">
+                  <select
+                    value={activeGroupId || ''}
+                    onChange={e => setActiveGroupId(e.target.value)}
+                    className="bg-transparent hover:bg-slate-900/60 text-2xl md:text-3xl font-extrabold text-white tracking-tight pr-8 py-0.5 rounded-xl focus:outline-none cursor-pointer transition-all border border-transparent hover:border-slate-800/80 appearance-none max-w-[280px] sm:max-w-xs md:max-w-md truncate"
+                  >
+                    {groups.map(g => (
+                      <option key={g.id} value={g.id} className="bg-slate-950 text-base font-semibold text-slate-200">
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-5 h-5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-white transition-colors" />
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => setShowAddGroupModal(true)}
+                    className="text-slate-400 hover:text-brand-400 p-1.5 hover:bg-brand-500/10 rounded-xl transition-all"
+                    title="Crear nuevo grupo"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={handleDeleteGroup}
+                    className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-900/60 rounded-xl transition-all"
+                    title="Eliminar este grupo y todos sus gastos"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Compact Metadata Row */}
+              <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-400">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  Creado el {new Date(activeGroup.createdAt).toLocaleDateString()}
+                  {activeGroup.syncedAt && ` • Sincronizado hace poco`}
+                </span>
+
+                {activeGroup.syncCode && (
+                  <div className="flex items-center gap-1 bg-slate-900/70 px-2 py-0.5 rounded-md border border-slate-800/60">
+                    <span className="text-[10px] text-slate-400 font-mono">Código: {activeGroup.syncCode}</span>
+                    <button
+                      onClick={async () => {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                          try {
+                            await navigator.clipboard.writeText(activeGroup.syncCode);
+                          } catch (_) {}
+                        }
+                        setSyncStatus({ loading: false, error: '', success: 'Código copiado al portapapeles.' });
+                        setTimeout(() => setSyncStatus(prev => ({ ...prev, success: '' })), 3000);
+                      }}
+                      className="text-slate-500 hover:text-brand-400 transition-colors p-0.5 rounded"
+                      title="Copiar código de sincronización"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
 
-
-
-        {/* Right Side: Cloud Sync & P2P QR */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {activeGroupId && (
+            {/* Total Gastado Badge */}
+            <div className="sm:text-right shrink-0 bg-slate-900/40 border border-slate-800/60 px-4 py-2 rounded-xl self-start sm:self-center">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Gastado</p>
+              <p className="text-xl md:text-2xl font-black text-white tracking-tight">
+                ${totalSpent.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="pt-3.5 border-t border-slate-800/80 flex items-center justify-between">
+            <p className="text-sm text-slate-400 font-semibold">No hay ningún grupo seleccionado.</p>
             <button
-              onClick={() => setShowQRModal(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
-              title="Compartir mediante QR o escanear uno existente"
+              onClick={() => setShowAddGroupModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 hover:bg-brand-400 text-slate-950 rounded-xl text-xs font-bold transition-all"
             >
-              <QrCode className="w-3.5 h-3.5 text-slate-450" />
-              <span>QR P2P</span>
+              <Plus className="w-4 h-4" />
+              <span>Crear Grupo</span>
             </button>
-          )}
-
-          {activeGroupId && (
-            <button
-              onClick={handleCloudSync}
-              disabled={syncStatus.loading}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-955/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
-              title="Guardar en la nube y copiar link"
-            >
-              <Share2 className={`w-3.5 h-3.5 text-slate-450 ${syncStatus.loading ? 'animate-spin' : ''}`} />
-              <span>Nube</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-955/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-slate-450" />
-            <span>Importar</span>
-          </button>
-        </div>
+          </div>
+        )}
       </header>
 
       {/* Sync notices */}
@@ -431,90 +524,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Single Column Content (Sidebar Removed) */}
+      {/* Main Single Column Content */}
       <main className="space-y-6">
         {activeGroup ? (
           <>
             {/* Group Overview Card */}
             <section className="glass-premium rounded-2xl p-6 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none"></div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 mb-5">
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  {/* Title & Group Switcher + Quick Actions */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="relative group inline-flex items-center">
-                      <select
-                        value={activeGroupId || ''}
-                        onChange={e => setActiveGroupId(e.target.value)}
-                        className="bg-transparent hover:bg-slate-900/60 text-2xl md:text-3xl font-extrabold text-white tracking-tight pr-8 py-0.5 rounded-xl focus:outline-none cursor-pointer transition-all border border-transparent hover:border-slate-800/80 appearance-none max-w-[280px] sm:max-w-xs md:max-w-md truncate"
-                      >
-                        {groups.map(g => (
-                          <option key={g.id} value={g.id} className="bg-slate-950 text-base font-semibold text-slate-200">
-                            {g.name}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-5 h-5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-white transition-colors" />
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => setShowAddGroupModal(true)}
-                        className="text-slate-400 hover:text-brand-400 p-1.5 hover:bg-brand-500/10 rounded-xl transition-all"
-                        title="Crear nuevo grupo"
-                      >
-                        <Plus className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={handleDeleteGroup}
-                        className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-900/60 rounded-xl transition-all"
-                        title="Eliminar este grupo y todos sus gastos"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Compact Metadata Row */}
-                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-400">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      Creado el {new Date(activeGroup.createdAt).toLocaleDateString()}
-                      {activeGroup.syncedAt && ` • Sincronizado hace poco`}
-                    </span>
-
-                    {activeGroup.syncCode && (
-                      <div className="flex items-center gap-1 bg-slate-900/70 px-2 py-0.5 rounded-md border border-slate-800/60">
-                        <span className="text-[10px] text-slate-400 font-mono">Código: {activeGroup.syncCode}</span>
-                        <button
-                          onClick={async () => {
-                            if (navigator.clipboard && navigator.clipboard.writeText) {
-                              try {
-                                await navigator.clipboard.writeText(activeGroup.syncCode);
-                              } catch (_) {}
-                            }
-                            setSyncStatus({ loading: false, error: '', success: 'Código copiado al portapapeles.' });
-                            setTimeout(() => setSyncStatus(prev => ({ ...prev, success: '' })), 3000);
-                          }}
-                          className="text-slate-500 hover:text-brand-400 transition-colors p-0.5 rounded"
-                          title="Copiar código de sincronización"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Total Gastado Badge */}
-                <div className="sm:text-right shrink-0 bg-slate-900/40 border border-slate-800/60 px-4 py-2 rounded-xl self-start sm:self-center">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Gastado</p>
-                  <p className="text-xl md:text-2xl font-black text-white tracking-tight">
-                    ${totalSpent.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-              </div>
 
               {/* Balances Grid */}
               <div>
