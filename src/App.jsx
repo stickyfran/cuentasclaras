@@ -807,8 +807,8 @@ export default function App() {
 
       {/* MODAL: ADD EXPENSE */}
       {showAddExpenseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-          <form onSubmit={handleAddExpense} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 pt-4 sm:pt-6 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <form onSubmit={handleAddExpense} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto my-auto sm:my-0">
             <h3 className="text-xl font-bold text-slate-100 mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-brand-400" />
               Registrar Gasto
@@ -859,16 +859,43 @@ export default function App() {
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                   ¿Quién pagó?
                 </label>
-                <select
-                  value={expensePayer}
-                  onChange={e => setExpensePayer(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-brand-500/50 transition-all"
-                >
-                  <option value="" disabled>Selecciona al pagador</option>
-                  {members.map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
+                {members.length <= 6 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {members.map(m => {
+                      const isSelected = expensePayer === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setExpensePayer(m.id)}
+                          className={`flex items-center gap-2 p-2 rounded-xl border text-left text-xs font-semibold transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-brand-500/15 border-brand-500 text-white shadow-sm shadow-brand-500/20'
+                              : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-850 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                            isSelected ? 'bg-brand-400 text-slate-950' : 'bg-slate-800 text-slate-300'
+                          }`}>
+                            {m.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="truncate">{m.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <select
+                    value={expensePayer}
+                    onChange={e => setExpensePayer(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-brand-500/50 transition-all cursor-pointer"
+                  >
+                    <option value="" disabled>Selecciona al pagador</option>
+                    {members.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
@@ -946,7 +973,7 @@ export default function App() {
               )}
 
               {expenseSplitType === 'percentage' && (
-                <div className="space-y-2 border-t border-slate-850 pt-3">
+                <div className="space-y-3 border-t border-slate-850 pt-3">
                   <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
                     Porcentajes por Miembro
                   </span>
@@ -954,36 +981,53 @@ export default function App() {
                     const percentage = parseFloat(expenseCustomSplits[m.id] || 0);
                     const calculatedVal = expenseAmount ? (percentage / 100) * parseFloat(expenseAmount) : 0;
                     return (
-                      <div key={m.id} className="flex items-center justify-between gap-3 bg-slate-950/60 p-2 rounded-lg border border-slate-850">
-                        <span className="text-xs font-semibold text-slate-300">
-                          {m.name} <span className="text-slate-500 text-[10px]">(${calculatedVal.toFixed(2)})</span>
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            max="100"
-                            placeholder="0"
-                            value={expenseCustomSplits[m.id] || ''}
-                            onChange={e => {
-                              setExpenseCustomSplits(prev => ({
-                                ...prev,
-                                [m.id]: e.target.value
-                              }));
-                            }}
-                            className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 text-right focus:outline-none focus:border-brand-500/50"
-                          />
-                          <span className="text-xs text-slate-500 font-bold">%</span>
+                      <div key={m.id} className="bg-slate-950/60 p-3 rounded-xl border border-slate-850 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-200">{m.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400 text-[11px] font-mono">(${calculatedVal.toFixed(2)})</span>
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              max="100"
+                              placeholder="0"
+                              value={expenseCustomSplits[m.id] ?? ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setExpenseCustomSplits(prev => ({
+                                  ...prev,
+                                  [m.id]: val
+                                }));
+                              }}
+                              className="w-14 bg-slate-900 border border-slate-800 rounded-lg px-2 py-0.5 text-xs text-slate-200 text-right focus:outline-none focus:border-brand-500/50"
+                            />
+                            <span className="text-xs text-slate-400 font-bold">%</span>
+                          </div>
                         </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={percentage || 0}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setExpenseCustomSplits(prev => ({
+                              ...prev,
+                              [m.id]: val
+                            }));
+                          }}
+                          className="w-full accent-brand-400 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                        />
                       </div>
                     );
                   })}
                   <div className="text-[10px] text-right text-slate-500 font-bold">
                     Suma de porcentajes:{' '}
-                    {Object.values(expenseCustomSplits)
-                      .reduce((acc, curr) => acc + (parseFloat(curr) || 0), 0)
-                      .toFixed(1)}% / 100%
+                    <span className={Math.abs(Object.values(expenseCustomSplits).reduce((acc, curr) => acc + (parseFloat(curr) || 0), 0) - 100) < 0.5 ? 'text-brand-400' : 'text-orange-400'}>
+                      {Object.values(expenseCustomSplits).reduce((acc, curr) => acc + (parseFloat(curr) || 0), 0).toFixed(0)}%
+                    </span> / 100%
                   </div>
                 </div>
               )}
