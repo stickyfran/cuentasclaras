@@ -8,7 +8,7 @@ import QRShareModal from './components/QRShareModal';
 import confetti from 'canvas-confetti';
 import { 
   Users, Plus, Trash2, Share2, QrCode, RefreshCw, LogIn, 
-  DollarSign, ArrowRight, UserPlus, Calendar, Info, CheckCircle2, AlertTriangle, ChevronDown, Moon, Sun, Copy
+  DollarSign, ArrowRight, UserPlus, Calendar, Info, CheckCircle2, AlertTriangle, ChevronDown, Moon, Sun, Copy, History, Edit3
 } from 'lucide-react';
 
 export default function App() {
@@ -21,10 +21,17 @@ export default function App() {
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
+
+  // Edit Expense State
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
 
   // Form states
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMembers, setNewGroupMembers] = useState('');
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  
   const [expenseDesc, setExpenseDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expensePayer, setExpensePayer] = useState('');
@@ -42,6 +49,9 @@ export default function App() {
   const expenses = useLiveQuery(() => 
     activeGroupId ? db.expenses.where('groupId').equals(activeGroupId).toArray() : Promise.resolve([])
   , [activeGroupId]) || [];
+  const auditLogs = useLiveQuery(() => 
+    activeGroupId ? db.auditLogs.where('groupId').equals(activeGroupId).toArray() : Promise.resolve([])
+  , [activeGroupId]) || [];
 
   // Automatically select first group on start if none selected
   useEffect(() => {
@@ -55,7 +65,6 @@ export default function App() {
     if (activeGroupId) {
       const stored = localStorage.getItem(`yupana_claimed_${activeGroupId}`);
       setClaimedUserId(stored);
-      // Reset form states
       setExpensePayer(stored || '');
     } else {
       setClaimedUserId(null);
@@ -64,12 +73,13 @@ export default function App() {
 
   // Update default payer when claimed user changes
   useEffect(() => {
-    if (claimedUserId) {
+    if (claimedUserId && !editingExpenseId) {
       setExpensePayer(claimedUserId);
     }
-  }, [claimedUserId]);
+  }, [claimedUserId, editingExpenseId]);
 
   const activeGroup = groups.find(g => g.id === activeGroupId);
+  const claimedMember = members.find(m => m.id === claimedUserId);
 
   // Calculate balances & simplified transactions
   const activeExpenses = expenses.filter(e => !e.deleted);
@@ -129,11 +139,37 @@ export default function App() {
     setTimeout(() => setShowClaimModal(true), 300);
   };
 
-  const handleAddExpense = async (e) => {
+  const openAddExpenseModal = () => {
+    setEditingExpenseId(null);
+    setExpenseDesc('');
+    setExpenseAmount('');
+    setExpensePayer(claimedUserId || '');
+    setExpenseSplitType('equal');
+    setExpenseCustomSplits({});
+    setShowAddExpenseModal(true);
+  };
+
+  const openEditExpenseModal = (exp) => {
+    setEditingExpenseId(exp.id);
+    setExpenseDesc(exp.description);
+    setExpenseAmount(exp.amount.toString());
+    setExpensePayer(exp.paidById);
+    setExpenseSplitType(exp.splitType || 'equal');
+
+    const splitMap = {};
+    if (exp.splits && Array.isArray(exp.splits)) {
+      exp.splits.forEach(s => {
+        splitMap[s.memberId] = exp.splitType === 'percentage' ? s.percentage : s.amount;
+      });
+    }
+    setExpenseCustomSplits(splitMap);
+    setShowAddExpenseModal(true);
+  };
+
+  const handleSaveExpense = async (e) => {
     e.preventDefault();
     if (!expenseDesc.trim() || !expenseAmount || !expensePayer) return;
 
-    // Check if user claimed their identity
     if (!claimedUserId) {
       setShowClaimModal(true);
       return;
@@ -143,7 +179,7 @@ export default function App() {
     if (isNaN(amountNum) || amountNum <= 0) return;
 
     const now = Date.now();
-    const expenseId = 'expense-' + crypto.randomUUID();
+    const authorName = claimedMember?.name || 'Desconocido';
 
     let splits = [];
     if (expenseSplitType === 'custom') {
@@ -152,7 +188,6 @@ export default function App() {
         amount: parseFloat(expenseCustomSplits[m.id] || 0)
       }));
 
-      // Validate total sum of custom splits matches total expense
       const sum = splits.reduce((acc, curr) => acc + curr.amount, 0);
       if (Math.abs(sum - amountNum) > 0.05) {
         alert(`La suma de las partes (${sum.toFixed(2)}) debe coincidir con el monto total (${amountNum.toFixed(2)}).`);
@@ -164,7 +199,6 @@ export default function App() {
         percentage: parseFloat(expenseCustomSplits[m.id] || 0)
       }));
 
-      // Validate total sum of percentages equals 100
       const sum = splits.reduce((acc, curr) => acc + curr.percentage, 0);
       if (Math.abs(sum - 100) > 0.1) {
         alert(`La suma de los porcentajes (${sum.toFixed(2)}%) debe ser exactamente 100%.`);
@@ -172,53 +206,152 @@ export default function App() {
       }
     }
 
-    await db.expenses.add({
-      id: expenseId,
-      groupId: activeGroupId,
-      description: expenseDesc.trim(),
-      amount: amountNum,
-      paidById: expensePayer,
-      splitType: expenseSplitType,
-      splits,
-      date: now,
-      createdAt: now,
-      updatedAt: now,
-      deleted: 0
-    });
+    if (editingExpenseId) {
+      // EDIT EXISTING EXPENSE
+      const prevExpense = await db.expenses.get(editingExpenseId);
+      const prevPayer = members.find(m => m.id === prevExpense?.paidById)?.name || 'Desconocido';
+      const newPayer = members.find(m => m.id === expensePayer)?.name || 'Desconocido';
 
-    // Touch group updatedAt
-    await db.groups.update(activeGroupId, { updatedAt: now });
+      const updatedFields = {
+        description: expenseDesc.trim(),
+        amount: amountNum,
+        paidById: expensePayer,
+        splitType: expenseSplitType,
+        splits,
+        updatedAt: now
+      };
+
+      await db.expenses.update(editingExpenseId, updatedFields);
+      await db.groups.update(activeGroupId, { updatedAt: now });
+
+      // Audit Log for UPDATE
+      const auditLogId = 'audit-' + crypto.randomUUID();
+      await db.auditLogs.add({
+        id: auditLogId,
+        groupId: activeGroupId,
+        expenseId: editingExpenseId,
+        action: 'UPDATE',
+        authorId: claimedUserId,
+        authorName,
+        timestamp: now,
+        previousState: {
+          description: prevExpense.description,
+          amount: prevExpense.amount,
+          paidById: prevExpense.paidById,
+          payerName: prevPayer,
+          splitType: prevExpense.splitType
+        },
+        newState: {
+          description: expenseDesc.trim(),
+          amount: amountNum,
+          paidById: expensePayer,
+          payerName: newPayer,
+          splitType: expenseSplitType
+        }
+      });
+    } else {
+      // CREATE NEW EXPENSE
+      const expenseId = 'expense-' + crypto.randomUUID();
+      await db.expenses.add({
+        id: expenseId,
+        groupId: activeGroupId,
+        description: expenseDesc.trim(),
+        amount: amountNum,
+        paidById: expensePayer,
+        splitType: expenseSplitType,
+        splits,
+        date: now,
+        createdAt: now,
+        updatedAt: now,
+        deleted: 0
+      });
+
+      await db.groups.update(activeGroupId, { updatedAt: now });
+
+      // Audit Log for CREATE
+      const auditLogId = 'audit-' + crypto.randomUUID();
+      const payerName = members.find(m => m.id === expensePayer)?.name || 'Desconocido';
+      await db.auditLogs.add({
+        id: auditLogId,
+        groupId: activeGroupId,
+        expenseId,
+        action: 'CREATE',
+        authorId: claimedUserId,
+        authorName,
+        timestamp: now,
+        previousState: null,
+        newState: {
+          description: expenseDesc.trim(),
+          amount: amountNum,
+          paidById: expensePayer,
+          payerName,
+          splitType: expenseSplitType
+        }
+      });
+
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
+    }
 
     // Reset Form
     setExpenseDesc('');
     setExpenseAmount('');
     setExpenseSplitType('equal');
     setExpenseCustomSplits({});
+    setEditingExpenseId(null);
     setShowAddExpenseModal(false);
-    
-    // Trigger celebratory small confetti
-    confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
   };
 
-  const handleDeleteExpense = async (expenseId) => {
+  const handleDeleteExpense = async (expenseId, e) => {
+    if (e) e.stopPropagation();
     if (!confirm('¿Estás seguro de que deseas eliminar este gasto?')) return;
+    
     const now = Date.now();
+    const exp = await db.expenses.get(expenseId);
+    const authorName = claimedMember?.name || 'Desconocido';
+    const payerName = members.find(m => m.id === exp?.paidById)?.name || 'Desconocido';
+
     await db.expenses.update(expenseId, { deleted: 1, updatedAt: now });
     await db.groups.update(activeGroupId, { updatedAt: now });
+
+    // Audit Log for DELETE
+    const auditLogId = 'audit-' + crypto.randomUUID();
+    await db.auditLogs.add({
+      id: auditLogId,
+      groupId: activeGroupId,
+      expenseId,
+      action: 'DELETE',
+      authorId: claimedUserId,
+      authorName,
+      timestamp: now,
+      previousState: {
+        description: exp.description,
+        amount: exp.amount,
+        payerName
+      },
+      newState: null
+    });
   };
 
-  const handleDeleteGroup = async () => {
-    if (!activeGroupId) return;
-    if (!confirm(`¿Estás seguro de que deseas eliminar por completo el grupo "${activeGroup.name}" y todos sus gastos? Esta acción es local y no se puede deshacer.`)) return;
+  const handleConfirmDeleteGroup = async (e) => {
+    e.preventDefault();
+    if (!activeGroup) return;
 
-    await db.transaction('rw', [db.groups, db.members, db.expenses], async () => {
+    if (deleteConfirmName.trim() !== activeGroup.name.trim()) {
+      alert('El nombre ingresado no coincide con el nombre del grupo.');
+      return;
+    }
+
+    await db.transaction('rw', [db.groups, db.members, db.expenses, db.auditLogs], async () => {
       await db.groups.delete(activeGroupId);
       await db.members.where('groupId').equals(activeGroupId).delete();
       await db.expenses.where('groupId').equals(activeGroupId).delete();
+      await db.auditLogs.where('groupId').equals(activeGroupId).delete();
     });
 
     localStorage.removeItem(`yupana_claimed_${activeGroupId}`);
     setActiveGroupId(null);
+    setShowDeleteGroupModal(false);
+    setDeleteConfirmName('');
   };
 
   const handleCloudSync = async () => {
@@ -234,9 +367,7 @@ export default function App() {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
           await navigator.clipboard.writeText(activeGroupId);
-        } catch (_) {
-          // Ignore clipboard write failures (e.g. insecure origin or unfocused doc)
-        }
+        } catch (_) {}
       }
       setTimeout(() => setSyncStatus(prev => ({ ...prev, success: '' })), 4000);
     } catch (err) {
@@ -264,20 +395,18 @@ export default function App() {
   };
 
   const handleSettleUpTransaction = async (tx) => {
-    // Record a payment transaction as an expense
     const now = Date.now();
     const expenseId = 'expense-' + crypto.randomUUID();
+    const authorName = claimedMember?.name || 'Sistema';
 
     await db.expenses.add({
       id: expenseId,
       groupId: activeGroupId,
       description: `Liquidación: ${tx.fromName} ➔ ${tx.toName}`,
       amount: tx.amount,
-      paidById: tx.from, // paid by debtor
+      paidById: tx.from,
       splitType: 'custom',
-      splits: [
-        { memberId: tx.to, amount: tx.amount } // only the creditor gets charged
-      ],
+      splits: [{ memberId: tx.to, amount: tx.amount }],
       date: now,
       createdAt: now,
       updatedAt: now,
@@ -285,8 +414,26 @@ export default function App() {
     });
 
     await db.groups.update(activeGroupId, { updatedAt: now });
-    
-    // Confetti!
+
+    // Audit log
+    const auditLogId = 'audit-' + crypto.randomUUID();
+    await db.auditLogs.add({
+      id: auditLogId,
+      groupId: activeGroupId,
+      expenseId,
+      action: 'CREATE',
+      authorId: claimedUserId || 'system',
+      authorName,
+      timestamp: now,
+      previousState: null,
+      newState: {
+        description: `Liquidación: ${tx.fromName} ➔ ${tx.toName}`,
+        amount: tx.amount,
+        payerName: tx.fromName,
+        splitType: 'custom'
+      }
+    });
+
     confetti({
       particleCount: 150,
       spread: 80,
@@ -334,101 +481,23 @@ export default function App() {
     window.location.reload(true);
   };
 
-  const claimedMember = members.find(m => m.id === claimedUserId);
-
   return (
-    <div className="max-w-6xl mx-auto px-4 py-4 md:py-8 flex flex-col min-h-screen">
-      {/* Unified Top Banner / Header */}
-      <header className="glass-premium rounded-2xl p-4 md:p-5 mb-6 space-y-4 relative overflow-hidden">
+    <div className="max-w-6xl mx-auto px-4 py-4 md:py-8 flex flex-col min-h-screen pb-24">
+      {/* Compact Top Header (Logo removed to save space as requested) */}
+      <header className="glass-premium rounded-2xl p-4 mb-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-        {/* Top Row: App Brand, User Identity & Global Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Left: Brand Logo & Local Identity */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0">
-                <span className="text-slate-950 font-black text-lg tracking-tighter">Y</span>
-              </div>
-              <div>
-                <h1 className="text-lg font-bold tracking-tight text-white">
-                  Yupana
-                </h1>
-              </div>
-            </div>
-
-            <div className="h-5 w-px bg-slate-800 hidden sm:block"></div>
-            
-            {activeGroupId && (
-              <div className="flex items-center">
-                {claimedUserId ? (
-                  <button
-                    onClick={() => setShowClaimModal(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold rounded-full hover:bg-brand-500/20 transition-all"
-                    title="Haz clic para cambiar de usuario"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
-                    <span className="truncate max-w-[90px]">{claimedMember?.name || 'Cargando...'}</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setShowClaimModal(true)}
-                    className="flex items-center gap-1 px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-bold rounded-full hover:bg-yellow-500/20 transition-all"
-                  >
-                    <LogIn className="w-3 h-3" />
-                    ¿Quién eres?
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Right Actions: QR P2P, Nube, Importar */}
-          <div className="flex items-center gap-2 flex-wrap ml-auto">
-            {activeGroupId && (
-              <button
-                onClick={() => setShowQRModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/60 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
-                title="Compartir mediante QR o escanear uno existente"
-              >
-                <QrCode className="w-3.5 h-3.5 text-slate-450" />
-                <span className="hidden sm:inline">QR P2P</span>
-              </button>
-            )}
-
-            {activeGroupId && (
-              <button
-                onClick={handleCloudSync}
-                disabled={syncStatus.loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-955/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
-                title="Guardar en la nube y copiar link"
-              >
-                <Share2 className={`w-3.5 h-3.5 text-slate-450 ${syncStatus.loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Nube</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-955/50 border border-slate-850 hover:border-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-900"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-slate-450" />
-              <span className="hidden sm:inline">Importar</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Bottom Row: Active Group Info & Controls */}
         {activeGroup ? (
-          <div className="pt-3.5 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Left: Group Selector & Actions + Identity */}
             <div className="space-y-1.5 flex-1 min-w-0">
-              {/* Title & Group Switcher + Quick Actions */}
               <div className="flex items-center gap-2 flex-wrap">
+                {/* Group Selector */}
                 <div className="relative group inline-flex items-center">
                   <select
                     value={activeGroupId || ''}
                     onChange={e => setActiveGroupId(e.target.value)}
-                    className="bg-transparent hover:bg-slate-900/60 text-2xl md:text-3xl font-extrabold text-white tracking-tight pr-8 py-0.5 rounded-xl focus:outline-none cursor-pointer transition-all border border-transparent hover:border-slate-800/80 appearance-none max-w-[280px] sm:max-w-xs md:max-w-md truncate"
+                    className="bg-transparent hover:bg-slate-900/60 text-2xl md:text-3xl font-extrabold text-white tracking-tight pr-8 py-0.5 rounded-xl focus:outline-none cursor-pointer transition-all border border-transparent hover:border-slate-800/80 appearance-none max-w-[260px] sm:max-w-xs md:max-w-md truncate"
                   >
                     {groups.map(g => (
                       <option key={g.id} value={g.id} className="bg-slate-950 text-base font-semibold text-slate-200">
@@ -439,6 +508,7 @@ export default function App() {
                   <ChevronDown className="w-5 h-5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-white transition-colors" />
                 </div>
 
+                {/* Quick Actions: Add & Delete Group */}
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => setShowAddGroupModal(true)}
@@ -448,21 +518,45 @@ export default function App() {
                     <Plus className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={handleDeleteGroup}
+                    onClick={() => {
+                      setDeleteConfirmName('');
+                      setShowDeleteGroupModal(true);
+                    }}
                     className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-900/60 rounded-xl transition-all"
-                    title="Eliminar este grupo y todos sus gastos"
+                    title="Eliminar este grupo"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
+
+                {/* User Identity Pill */}
+                <div className="flex items-center ml-1">
+                  {claimedUserId ? (
+                    <button
+                      onClick={() => setShowClaimModal(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold rounded-full hover:bg-brand-500/20 transition-all"
+                      title="Cambiar perfil activo"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
+                      <span className="truncate max-w-[90px]">{claimedMember?.name || 'Cargando...'}</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setShowClaimModal(true)}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-bold rounded-full hover:bg-yellow-500/20 transition-all"
+                    >
+                      <LogIn className="w-3 h-3" />
+                      ¿Quién eres?
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Compact Metadata Row */}
-              <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-400">
+              {/* Group Metadata & Sync Code */}
+              <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  Creado el {new Date(activeGroup.createdAt).toLocaleDateString()}
-                  {activeGroup.syncedAt && ` • Sincronizado hace poco`}
+                  Creado {new Date(activeGroup.createdAt).toLocaleDateString()}
                 </span>
 
                 {activeGroup.syncCode && (
@@ -488,16 +582,48 @@ export default function App() {
               </div>
             </div>
 
-            {/* Total Gastado Badge */}
-            <div className="sm:text-right shrink-0 bg-slate-900/40 border border-slate-800/60 px-4 py-2 rounded-xl self-start sm:self-center">
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Gastado</p>
-              <p className="text-xl md:text-2xl font-black text-white tracking-tight">
-                ${totalSpent.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
+            {/* Right: Actions (QR, Nube, Importar) & Total Spent */}
+            <div className="flex items-center justify-between md:justify-end gap-3 shrink-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  onClick={() => setShowQRModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-850"
+                  title="QR P2P"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-slate-450" />
+                  <span className="hidden sm:inline">QR</span>
+                </button>
+
+                <button
+                  onClick={handleCloudSync}
+                  disabled={syncStatus.loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-850"
+                  title="Guardar en la nube"
+                >
+                  <Share2 className={`w-3.5 h-3.5 text-slate-450 ${syncStatus.loading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Nube</span>
+                </button>
+
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all hover:bg-slate-850"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-slate-450" />
+                  <span className="hidden sm:inline">Importar</span>
+                </button>
+              </div>
+
+              {/* Total Spent Badge */}
+              <div className="bg-slate-900/60 border border-slate-800 px-3.5 py-1.5 rounded-xl text-right">
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Gastado</p>
+                <p className="text-lg md:text-xl font-black text-white tracking-tight">
+                  ${totalSpent.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="pt-3.5 border-t border-slate-800/80 flex items-center justify-between">
+          <div className="flex items-center justify-between">
             <p className="text-sm text-slate-400 font-semibold">No hay ningún grupo seleccionado.</p>
             <button
               onClick={() => setShowAddGroupModal(true)}
@@ -615,11 +741,14 @@ export default function App() {
                 )}
               </section>
 
-              {/* Expenses History List */}
+              {/* Expenses History List (Clickable to Edit) */}
               <section className="md:col-span-7 glass-premium rounded-2xl p-5">
-                <h3 className="font-bold text-slate-200 text-sm tracking-wider uppercase mb-4 border-b border-slate-800 pb-2.5">
-                  Historial de Gastos
-                </h3>
+                <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2.5">
+                  <h3 className="font-bold text-slate-200 text-sm tracking-wider uppercase">
+                    Historial de Gastos
+                  </h3>
+                  <span className="text-[10px] text-slate-500 font-semibold">Haz clic en un gasto para editar</span>
+                </div>
 
                 {activeExpenses.length === 0 ? (
                   <div className="text-center py-12 text-slate-500 text-xs">
@@ -633,14 +762,18 @@ export default function App() {
                       return (
                         <div 
                           key={exp.id} 
-                          className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 transition-all ${
+                          onClick={() => openEditExpenseModal(exp)}
+                          className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 transition-all cursor-pointer group ${
                             isSettlement 
-                              ? 'bg-emerald-950/20 border-emerald-900/40 hover:border-emerald-850'
-                              : 'bg-slate-900/30 border-slate-800 hover:border-slate-700'
+                              ? 'bg-emerald-950/20 border-emerald-900/40 hover:border-emerald-700'
+                              : 'bg-slate-900/30 border-slate-800 hover:border-brand-500/40 hover:bg-slate-900/60'
                           }`}
                         >
                           <div className="min-w-0">
-                            <h4 className="font-bold text-slate-200 text-sm truncate">{exp.description}</h4>
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="font-bold text-slate-200 text-sm truncate group-hover:text-brand-300 transition-colors">{exp.description}</h4>
+                              <Edit3 className="w-3.5 h-3.5 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
                             <p className="text-xs text-slate-500 mt-1">
                               Pagado por <span className="text-slate-400 font-medium">{payerName}</span> • {new Date(exp.date).toLocaleDateString()}
                             </p>
@@ -656,7 +789,7 @@ export default function App() {
                               ${exp.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                             </span>
                             <button
-                              onClick={() => handleDeleteExpense(exp.id)}
+                              onClick={(e) => handleDeleteExpense(exp.id, e)}
                               className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-800/80 rounded-lg transition-all"
                               title="Eliminar gasto"
                             >
@@ -674,7 +807,7 @@ export default function App() {
         ) : (
           <div className="glass-premium rounded-2xl p-10 text-center flex flex-col items-center justify-center">
             <Users className="w-16 h-16 text-slate-600 mb-4 opacity-50" />
-            <h2 className="text-2xl font-bold text-slate-300">¡Bienvenido a Yupana!</h2>
+            <h2 className="text-2xl font-bold text-slate-300">¡Bienvenido!</h2>
             <p className="text-slate-400 text-sm max-w-md mt-2">
               Para empezar a registrar gastos y dividir cuentas offline, crea un grupo en el menú superior o importa uno ya existente.
             </p>
@@ -689,26 +822,36 @@ export default function App() {
         )}
       </main>
 
-      {/* Floating Action Button (FAB) Bottom Right - desktop and mobile */}
+      {/* Floating Action Bar at the Bottom */}
       {activeGroupId && (
-        <button
-          onClick={() => {
-            if (!claimedUserId) {
-              setShowClaimModal(true);
-            } else {
-              setShowAddExpenseModal(true);
-            }
-          }}
-          className="fixed bottom-6 right-6 z-40 bg-brand-500 hover:bg-brand-400 text-slate-950 font-black p-4 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-brand-500/20 border border-brand-400/35"
-          title="Registrar nuevo gasto"
-        >
-          <Plus className="w-6 h-6 stroke-[3px]" />
-        </button>
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-slate-950/90 border border-slate-800 backdrop-blur-xl px-4 py-2.5 rounded-full shadow-2xl">
+          {/* ORANGE AUDIT BUTTON */}
+          <button
+            onClick={() => setShowAuditModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-orange-500/20 border border-orange-400/40 cursor-pointer"
+            title="Ver trazabilidad completa de cambios y eliminaciones"
+          >
+            <History className="w-4 h-4 stroke-[2.5px]" />
+            <span>Auditar</span>
+          </button>
+
+          <div className="w-px h-6 bg-slate-800"></div>
+
+          {/* ADD EXPENSE BUTTON */}
+          <button
+            onClick={openAddExpenseModal}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-brand-500/20 border border-brand-400/40 cursor-pointer"
+            title="Registrar nuevo gasto"
+          >
+            <Plus className="w-4 h-4 stroke-[3px]" />
+            <span>Agregar Gasto</span>
+          </button>
+        </div>
       )}
 
       {/* FOOTER */}
       <footer className="mt-auto pt-10 pb-4 text-center text-[10px] text-slate-600 flex flex-col items-center gap-2">
-        <p>© {new Date().getFullYear()} Yupana. Código Libre & 100% Offline-First. Tus datos nunca salen de tu dispositivo sin tu consentimiento.</p>
+        <p>© {new Date().getFullYear()} CuentasClaras. 100% Offline-First.</p>
         <button
           onClick={handleForceReload}
           className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900/80 hover:bg-slate-850 text-slate-400 hover:text-brand-400 border border-slate-800 hover:border-brand-500/30 rounded-lg transition-all font-semibold cursor-pointer"
@@ -718,6 +861,101 @@ export default function App() {
           <span>Recargar (Limpiar caché)</span>
         </button>
       </footer>
+
+      {/* MODAL: AUDIT LOGS */}
+      {showAuditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl relative max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-orange-400">
+                <History className="w-5 h-5" />
+                <h3 className="text-lg font-extrabold text-slate-100">Historial de Auditoría</h3>
+              </div>
+              <span className="text-xs bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2.5 py-0.5 rounded-full font-bold">
+                {auditLogs.length} Registros
+              </span>
+            </div>
+
+            {auditLogs.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-slate-500 text-xs">
+                <Info className="w-8 h-8 mb-2 opacity-50 text-orange-400" />
+                No hay modificaciones ni eventos registrados aún en este grupo.
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                {auditLogs.slice().reverse().map(log => {
+                  const dateStr = new Date(log.timestamp).toLocaleString('es-AR', {
+                    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'
+                  });
+
+                  return (
+                    <div key={log.id} className="p-3.5 bg-slate-955 border border-slate-850 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded font-black text-[10px] ${
+                            log.action === 'CREATE' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                            log.action === 'UPDATE' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+                            'bg-red-500/20 text-red-400 border border-red-500/30'
+                          }`}>
+                            {log.action === 'CREATE' ? 'CREADO' : log.action === 'UPDATE' ? 'MODIFICADO' : 'ELIMINADO'}
+                          </span>
+                          <span className="font-semibold text-slate-300">Por: <strong className="text-white">{log.authorName}</strong></span>
+                        </div>
+                        <span className="text-[10px] text-slate-500">{dateStr}</span>
+                      </div>
+
+                      {/* Log details */}
+                      {log.action === 'CREATE' && log.newState && (
+                        <div className="text-xs text-slate-400 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                          Se registró <strong>"{log.newState.description}"</strong> por <strong>${log.newState.amount}</strong> (Pagado por {log.newState.payerName}).
+                        </div>
+                      )}
+
+                      {log.action === 'UPDATE' && log.previousState && log.newState && (
+                        <div className="text-xs space-y-1.5 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                          {log.previousState.description !== log.newState.description && (
+                            <p className="text-slate-300">
+                              Descripción: <span className="line-through text-slate-500">{log.previousState.description}</span> ➔ <strong className="text-orange-300">{log.newState.description}</strong>
+                            </p>
+                          )}
+                          {log.previousState.amount !== log.newState.amount && (
+                            <p className="text-slate-300">
+                              Monto: <span className="line-through text-slate-500">${log.previousState.amount}</span> ➔ <strong className="text-orange-300">${log.newState.amount}</strong>
+                            </p>
+                          )}
+                          {log.previousState.paidById !== log.newState.paidById && (
+                            <p className="text-slate-300">
+                              Pagador: <span className="line-through text-slate-500">{log.previousState.payerName}</span> ➔ <strong className="text-orange-300">{log.newState.payerName}</strong>
+                            </p>
+                          )}
+                          {log.previousState.splitType !== log.newState.splitType && (
+                            <p className="text-slate-300">
+                              División: <span className="line-through text-slate-500">{log.previousState.splitType}</span> ➔ <strong className="text-orange-300">{log.newState.splitType}</strong>
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {log.action === 'DELETE' && log.previousState && (
+                        <div className="text-xs text-red-300/80 bg-red-950/20 p-2.5 rounded-lg border border-red-900/40">
+                          Se eliminó el gasto <strong>"{log.previousState.description}"</strong> por <strong>${log.previousState.amount}</strong>.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowAuditModal(false)}
+              className="mt-4 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-sm transition-all border border-slate-700"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: CLAIM USER */}
       {showClaimModal && (
@@ -742,6 +980,59 @@ export default function App() {
           }}
           onClose={() => setShowQRModal(false)}
         />
+      )}
+
+      {/* MODAL: DELETE GROUP CONFIRMATION BY NAME */}
+      {showDeleteGroupModal && activeGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <form onSubmit={handleConfirmDeleteGroup} className="w-full max-w-md bg-slate-900 border border-red-900/50 rounded-2xl p-6 shadow-2xl relative">
+            <h3 className="text-xl font-bold text-red-400 mb-2 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+              Eliminar Grupo
+            </h3>
+            <p className="text-slate-300 text-xs mb-4">
+              Esta acción eliminará el grupo <strong className="text-white">"{activeGroup.name}"</strong> y todos sus gastos de forma permanente.
+            </p>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Para confirmar, escribe <span className="text-white select-all font-bold">"{activeGroup.name}"</span> abajo:
+              </label>
+              <input
+                type="text"
+                required
+                placeholder={activeGroup.name}
+                value={deleteConfirmName}
+                onChange={e => setDeleteConfirmName(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-red-500 transition-all font-semibold"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteGroupModal(false);
+                  setDeleteConfirmName('');
+                }}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition-all border border-slate-700 text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={deleteConfirmName.trim() !== activeGroup.name.trim()}
+                className={`flex-1 py-2.5 font-bold rounded-xl transition-all text-sm ${
+                  deleteConfirmName.trim() === activeGroup.name.trim()
+                    ? 'bg-red-600 hover:bg-red-500 text-white cursor-pointer'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50'
+                }`}
+              >
+                Eliminar Grupo
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* MODAL: ADD GROUP */}
@@ -805,13 +1096,13 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD EXPENSE */}
+      {/* MODAL: ADD / EDIT EXPENSE */}
       {showAddExpenseModal && (
         <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 pt-2 sm:pt-6 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-          <form onSubmit={handleAddExpense} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl max-h-[88vh] sm:max-h-[90vh] overflow-y-auto mt-1 sm:my-auto">
+          <form onSubmit={handleSaveExpense} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl max-h-[88vh] sm:max-h-[90vh] overflow-y-auto mt-1 sm:my-auto">
             <h3 className="text-xl font-bold text-slate-100 mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-brand-400" />
-              Registrar Gasto
+              {editingExpenseId ? 'Editar Gasto' : 'Registrar Gasto'}
             </h3>
 
             <div className="space-y-4">
@@ -871,7 +1162,7 @@ export default function App() {
                           className={`flex items-center gap-2 p-2 rounded-xl border text-left text-xs font-semibold transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-brand-500/15 border-brand-500 text-white shadow-sm shadow-brand-500/20'
-                              : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-850 hover:border-slate-700'
+                              : 'bg-slate-955 border-slate-800 text-slate-300 hover:bg-slate-850 hover:border-slate-700'
                           }`}
                         >
                           <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-[10px] shrink-0 ${
@@ -1036,7 +1327,10 @@ export default function App() {
             <div className="flex items-center gap-2 mt-6">
               <button
                 type="button"
-                onClick={() => setShowAddExpenseModal(false)}
+                onClick={() => {
+                  setShowAddExpenseModal(false);
+                  setEditingExpenseId(null);
+                }}
                 className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition-all border border-slate-700 text-sm"
               >
                 Cancelar
@@ -1045,7 +1339,7 @@ export default function App() {
                 type="submit"
                 className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-500 text-slate-950 font-bold rounded-xl transition-all text-sm"
               >
-                Registrar
+                {editingExpenseId ? 'Guardar Cambios' : 'Registrar'}
               </button>
             </div>
           </form>
