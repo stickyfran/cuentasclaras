@@ -29,8 +29,12 @@ export default function QRShareModal({ groupId, onImportSuccess, onClose }) {
     };
   }, []);
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(qrString);
+  const copyToClipboard = async () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(qrString);
+      } catch (_) {}
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

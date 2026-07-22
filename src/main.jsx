@@ -5,8 +5,13 @@ import './index.css';
 import { seedDemoData } from './db/db';
 import { registerSW } from 'virtual:pwa-register';
 
-// Register the PWA service worker
-registerSW({ immediate: true });
+// Register the PWA service worker and force immediate reload on update
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    updateSW(true);
+  }
+});
 
 // Initialize database with seed demo data on startup
 seedDemoData()

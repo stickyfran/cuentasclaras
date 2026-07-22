@@ -1,6 +1,8 @@
 import { db } from '../db/db';
 
-const FIREBASE_DB_URL = 'https://yupana-sync-default-rtdb.firebaseio.com/groups';
+const DEFAULT_FIREBASE_BASE = 'https://yupana-117f2-default-rtdb.firebaseio.com';
+const FIREBASE_BASE_URL = (import.meta.env.VITE_FIREBASE_DB_URL || DEFAULT_FIREBASE_BASE).replace(/\/$/, '');
+const FIREBASE_DB_URL = `${FIREBASE_BASE_URL}/groups`;
 
 /**
  * Serializes a group and all its members and expenses to a single object.
@@ -47,8 +49,12 @@ export async function mergeGroupData(importedData) {
     // 3. Merge Expenses (Last-Write-Wins by updatedAt)
     for (const exp of expenses) {
       const existingExp = await db.expenses.get(exp.id);
-      if (!existingExp || (exp.updatedAt && exp.updatedAt > (existingExp.updatedAt || 0))) {
-        await db.expenses.put(exp);
+      if (!existingExp) {
+        if (!exp.deleted) {
+          await db.expenses.put(exp);
+        }
+      } else if (exp.updatedAt && exp.updatedAt > (existingExp.updatedAt || 0)) {
+        await db.expenses.update(exp.id, exp);
       }
     }
   });
@@ -65,7 +71,7 @@ export async function generateQRString(groupId) {
   // For QR, we only keep non-deleted expenses to save space
   const qrData = {
     ...data,
-    expenses: data.expenses.filter(e => !e.deleted)
+    expenses: data.expenses.map(e => e.deleted ? { id: e.id, deleted: 1, updatedAt: e.updatedAt } : e)
   };
   const jsonStr = JSON.stringify(qrData);
   // Simple Base64 encoding (supporting unicode characters safely)
@@ -95,11 +101,6 @@ export async function uploadGroupToCloud(groupId) {
   // Set syncedAt to now
   payload.group.syncedAt = Date.now();
   payload.group.syncCode = groupId; // use groupId as sync code / URL key
-  
-  await db.groups.update(groupId, {
-    syncedAt: payload.group.syncedAt,
-    syncCode: payload.group.syncCode
-  });
 
   const response = await fetch(`${FIREBASE_DB_URL}/${groupId}.json`, {
     method: 'PUT',
@@ -110,8 +111,18 @@ export async function uploadGroupToCloud(groupId) {
   });
 
   if (!response.ok) {
-    throw new Error('Error al subir los datos a la nube.');
+    let errDetail = response.statusText;
+    try {
+      const errJson = await response.json();
+      if (errJson && errJson.error) errDetail = errJson.error;
+    } catch (_) {}
+    throw new Error(`Error al subir los datos a la nube (${response.status}: ${errDetail}).`);
   }
+
+  await db.groups.update(groupId, {
+    syncedAt: payload.group.syncedAt,
+    syncCode: payload.group.syncCode
+  });
 
   return groupId;
 }
@@ -123,7 +134,12 @@ export async function uploadGroupToCloud(groupId) {
 export async function downloadGroupFromCloud(groupId) {
   const response = await fetch(`${FIREBASE_DB_URL}/${groupId}.json`);
   if (!response.ok) {
-    throw new Error('Error al descargar los datos de la nube.');
+    let errDetail = response.statusText;
+    try {
+      const errJson = await response.json();
+      if (errJson && errJson.error) errDetail = errJson.error;
+    } catch (_) {}
+    throw new Error(`Error al descargar los datos de la nube (${response.status}: ${errDetail}).`);
   }
 
   const data = await response.json();
@@ -132,10 +148,10 @@ export async function downloadGroupFromCloud(groupId) {
   }
   
   // Check expiration (14 days = 1,209,600,000 milliseconds)
-  const TWO_WEEES_MS = 14 * 24 * 60 * 60 * 1000;
+  const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
   const elapsed = Date.now() - (data.uploadedAt || 0);
   
-  if (elapsed > TWO_WEEES_MS) {
+  if (elapsed > TWO_WEEKS_MS) {
     throw new Error('El enlace de sincronización ha caducado (más de 14 días).');
   }
 

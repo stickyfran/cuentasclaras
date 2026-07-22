@@ -8,7 +8,7 @@ import QRShareModal from './components/QRShareModal';
 import confetti from 'canvas-confetti';
 import { 
   Users, Plus, Trash2, Share2, QrCode, RefreshCw, LogIn, 
-  DollarSign, ArrowRight, UserPlus, Calendar, Info, CheckCircle2, AlertTriangle, ChevronDown, Moon, Sun
+  DollarSign, ArrowRight, UserPlus, Calendar, Info, CheckCircle2, AlertTriangle, ChevronDown, Moon, Sun, Copy
 } from 'lucide-react';
 
 export default function App() {
@@ -230,10 +230,17 @@ export default function App() {
         error: '',
         success: '¡Sincronizado! Código de invitación copiado al portapapeles.'
       });
-      navigator.clipboard.writeText(activeGroupId);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(activeGroupId);
+        } catch (_) {
+          // Ignore clipboard write failures (e.g. insecure origin or unfocused doc)
+        }
+      }
       setTimeout(() => setSyncStatus(prev => ({ ...prev, success: '' })), 4000);
     } catch (err) {
-      setSyncStatus({ loading: false, error: err.message, success: '' });
+      console.error('Error en handleCloudSync:', err);
+      setSyncStatus({ loading: false, error: err.message || 'Error desconocido al subir los datos.', success: '' });
     }
   };
 
@@ -250,7 +257,8 @@ export default function App() {
       confetti({ particleCount: 100, spread: 80 });
       setTimeout(() => setSyncStatus(prev => ({ ...prev, success: '' })), 4000);
     } catch (err) {
-      setSyncStatus({ loading: false, error: err.message, success: '' });
+      console.error('Error en handleCloudImport:', err);
+      setSyncStatus({ loading: false, error: err.message || 'Error desconocido al importar.', success: '' });
     }
   };
 
@@ -445,11 +453,35 @@ export default function App() {
                       <Trash2 className="w-5 h-5" />
                     </button>
                   </h2>
-                  <p className="text-slate-400 text-xs mt-1 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    Creado el {new Date(activeGroup.createdAt).toLocaleDateString()} 
-                    {activeGroup.syncedAt && ` • Sincronizado hace poco`}
-                  </p>
+                  <div className="flex flex-col gap-1 mt-1">
+                    <p className="text-slate-400 text-xs flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Creado el {new Date(activeGroup.createdAt).toLocaleDateString()} 
+                      {activeGroup.syncedAt && ` • Sincronizado hace poco`}
+                    </p>
+                    {activeGroup.syncCode && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-500 font-mono bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-800/60">
+                          Código: {activeGroup.syncCode}
+                        </span>
+                        <button
+                          onClick={async () => {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              try {
+                                await navigator.clipboard.writeText(activeGroup.syncCode);
+                              } catch (_) {}
+                            }
+                            setSyncStatus({ loading: false, error: '', success: 'Código copiado al portapapeles.' });
+                            setTimeout(() => setSyncStatus(prev => ({ ...prev, success: '' })), 3000);
+                          }}
+                          className="text-slate-500 hover:text-brand-400 transition-colors p-0.5 rounded-md hover:bg-brand-500/10"
+                          title="Copiar código de sincronización"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-4">
