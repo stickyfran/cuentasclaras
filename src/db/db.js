@@ -6,7 +6,8 @@ export const db = new Dexie('YupanaDB');
 db.version(1).stores({
   groups: 'id, name, createdAt, updatedAt, syncedAt, syncCode',
   members: 'id, groupId, name, joinedAt',
-  expenses: 'id, groupId, paidById, date, createdAt, updatedAt, deleted'
+  expenses: 'id, groupId, paidById, date, createdAt, updatedAt, deleted',
+  auditLogs: 'id, groupId, expenseId, action, timestamp'
 });
 
 // Helper functions for seeding mock/demo data if database is empty

@@ -40,13 +40,15 @@ export async function serializeGroup(groupId) {
 
   const members = await db.members.where('groupId').equals(groupId).toArray();
   const expenses = await db.expenses.where('groupId').equals(groupId).toArray();
+  const auditLogs = await db.auditLogs ? await db.auditLogs.where('groupId').equals(groupId).toArray() : [];
 
   return {
     version: 1,
     uploadedAt: Date.now(),
     group,
     members,
-    expenses
+    expenses,
+    auditLogs
   };
 }
 
@@ -55,10 +57,10 @@ export async function serializeGroup(groupId) {
  * Implements merge logic (Last-Write-Wins and unique merging).
  */
 export async function mergeGroupData(importedData) {
-  const { group, members, expenses } = importedData;
+  const { group, members, expenses, auditLogs = [] } = importedData;
   if (!group || !group.id) throw new Error('Datos de grupo inválidos');
 
-  await db.transaction('rw', [db.groups, db.members, db.expenses], async () => {
+  await db.transaction('rw', [db.groups, db.members, db.expenses, db.auditLogs], async () => {
     // 1. Merge Group details
     const existingGroup = await db.groups.get(group.id);
     if (!existingGroup || (group.updatedAt && group.updatedAt > (existingGroup.updatedAt || 0))) {
@@ -82,6 +84,14 @@ export async function mergeGroupData(importedData) {
         }
       } else if (exp.updatedAt && exp.updatedAt > (existingExp.updatedAt || 0)) {
         await db.expenses.update(exp.id, exp);
+      }
+    }
+
+    // 4. Merge Audit Logs
+    for (const log of auditLogs) {
+      const existingLog = await db.auditLogs.get(log.id);
+      if (!existingLog) {
+        await db.auditLogs.put(log);
       }
     }
   });
