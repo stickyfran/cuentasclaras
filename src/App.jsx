@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db/db';
 import { calculateBalances } from './utils/balances';
-import { uploadGroupToCloud, downloadGroupFromCloud } from './hooks/useSync';
+import { uploadGroupToCloud, downloadGroupFromCloud, generateMemorableSyncCode } from './hooks/useSync';
 import ClaimUserModal from './components/ClaimUserModal';
 import QRShareModal from './components/QRShareModal';
 import confetti from 'canvas-confetti';
@@ -99,6 +99,7 @@ export default function App() {
 
     const groupId = 'group-' + crypto.randomUUID();
     const now = Date.now();
+    const syncCode = generateMemorableSyncCode();
 
     await db.groups.add({
       id: groupId,
@@ -106,7 +107,7 @@ export default function App() {
       createdAt: now,
       updatedAt: now,
       syncedAt: null,
-      syncCode: null
+      syncCode
     });
 
     const memberRecords = memberNames.map((name, i) => ({

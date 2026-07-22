@@ -4,6 +4,31 @@ const DEFAULT_FIREBASE_BASE = 'https://yupana-117f2-default-rtdb.firebaseio.com'
 const FIREBASE_BASE_URL = (import.meta.env.VITE_FIREBASE_DB_URL || DEFAULT_FIREBASE_BASE).replace(/\/$/, '');
 const FIREBASE_DB_URL = `${FIREBASE_BASE_URL}/groups`;
 
+const SPANISH_WORDS = [
+  'ASADO', 'MATE', 'FERNET', 'TRUCO', 'EMPANADA', 'CHORIPAN', 'MILANESA', 'ALMUERZO', 
+  'CENA', 'FIESTA', 'VIAJE', 'AMIGOS', 'PLAYA', 'MONTAÑA', 'PIZZA', 'CERVEZA', 
+  'CAMPING', 'VACACIONES', 'REUNION', 'CUMPLE', 'EQUIPO', 'FAMILIA', 'FUTBOL', 'CINE',
+  'JUNTADA', 'ASADITO', 'PICADA', 'MERIENDA', 'DESAYUNO', 'BOLICHE', 'BANDA', 'SALIDA'
+];
+
+/**
+ * Generates a memorable sync code in Argentine license plate + word format:
+ * NNN + MM + YY + PALABRA (e.g. KTM0726ASADO)
+ */
+export function generateMemorableSyncCode() {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let prefix = '';
+  for (let i = 0; i < 3; i++) {
+    prefix += letters.charAt(Math.floor(Math.random() * letters.length));
+  }
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = String(now.getFullYear()).slice(-2);
+  const word = SPANISH_WORDS[Math.floor(Math.random() * SPANISH_WORDS.length)];
+
+  return `${prefix}${month}${year}${word}`;
+}
+
 /**
  * Serializes a group and all its members and expenses to a single object.
  */
@@ -98,11 +123,17 @@ export async function importFromQRString(qrString) {
 export async function uploadGroupToCloud(groupId) {
   const payload = await serializeGroup(groupId);
   
+  // Ensure group has a memorable syncCode if it doesn't already have one
+  let syncCode = payload.group.syncCode;
+  if (!syncCode) {
+    syncCode = generateMemorableSyncCode();
+    payload.group.syncCode = syncCode;
+  }
+
   // Set syncedAt to now
   payload.group.syncedAt = Date.now();
-  payload.group.syncCode = groupId; // use groupId as sync code / URL key
 
-  const response = await fetch(`${FIREBASE_DB_URL}/${groupId}.json`, {
+  const response = await fetch(`${FIREBASE_DB_URL}/${syncCode}.json`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -121,18 +152,20 @@ export async function uploadGroupToCloud(groupId) {
 
   await db.groups.update(groupId, {
     syncedAt: payload.group.syncedAt,
-    syncCode: payload.group.syncCode
+    syncCode: syncCode
   });
 
-  return groupId;
+  return syncCode;
 }
 
 /**
  * Downloads group state from the KV store and merges it.
  * Validates the 14-day (2 weeks) expiration date.
  */
-export async function downloadGroupFromCloud(groupId) {
-  const response = await fetch(`${FIREBASE_DB_URL}/${groupId}.json`);
+export async function downloadGroupFromCloud(codeOrId) {
+  const cleanCode = codeOrId.trim().toUpperCase();
+  let response = await fetch(`${FIREBASE_DB_URL}/${cleanCode}.json`);
+  
   if (!response.ok) {
     let errDetail = response.statusText;
     try {
@@ -142,7 +175,16 @@ export async function downloadGroupFromCloud(groupId) {
     throw new Error(`Error al descargar los datos de la nube (${response.status}: ${errDetail}).`);
   }
 
-  const data = await response.json();
+  let data = await response.json();
+
+  // Fallback try original exact string if uppercase yielded no result
+  if (!data && cleanCode !== codeOrId.trim()) {
+    response = await fetch(`${FIREBASE_DB_URL}/${codeOrId.trim()}.json`);
+    if (response.ok) {
+      data = await response.json();
+    }
+  }
+
   if (!data) {
     throw new Error('Grupo no encontrado o ha sido eliminado de la nube.');
   }
