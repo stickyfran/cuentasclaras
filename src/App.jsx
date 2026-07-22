@@ -314,6 +314,26 @@ export default function App() {
     }
   };
 
+  const handleForceReload = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let registration of registrations) {
+          await registration.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (let key of keys) {
+          await caches.delete(key);
+        }
+      }
+    } catch (e) {
+      console.error('Error clearing cache:', e);
+    }
+    window.location.reload(true);
+  };
+
   const claimedMember = members.find(m => m.id === claimedUserId);
 
   return (
@@ -671,8 +691,16 @@ export default function App() {
       )}
 
       {/* FOOTER */}
-      <footer className="mt-auto pt-10 pb-4 text-center text-[10px] text-slate-600">
+      <footer className="mt-auto pt-10 pb-4 text-center text-[10px] text-slate-600 flex flex-col items-center gap-2">
         <p>© {new Date().getFullYear()} Yupana. Código Libre & 100% Offline-First. Tus datos nunca salen de tu dispositivo sin tu consentimiento.</p>
+        <button
+          onClick={handleForceReload}
+          className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900/80 hover:bg-slate-850 text-slate-400 hover:text-brand-400 border border-slate-800 hover:border-brand-500/30 rounded-lg transition-all font-semibold cursor-pointer"
+          title="Borrar memoria caché de la app y recargar la versión más reciente"
+        >
+          <RefreshCw className="w-3 h-3" />
+          <span>Recargar (Limpiar caché)</span>
+        </button>
       </footer>
 
       {/* MODAL: CLAIM USER */}
