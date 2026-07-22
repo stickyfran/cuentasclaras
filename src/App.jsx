@@ -360,30 +360,7 @@ export default function App() {
           )}
         </div>
 
-        {/* Center: Groups selection dropdown & creation (in header) */}
-        <div className="flex items-center gap-2 max-w-xs w-full md:w-auto">
-          <div className="relative flex-1 md:w-56">
-            <select
-              value={activeGroupId || ''}
-              onChange={e => setActiveGroupId(e.target.value)}
-              className="w-full bg-slate-950/80 border border-slate-800/80 rounded-xl pl-3.5 pr-8 py-2 text-sm text-slate-200 font-semibold appearance-none focus:outline-none focus:border-brand-500/50 transition-all cursor-pointer"
-            >
-              <option value="" disabled>Selecciona un grupo...</option>
-              {groups.map(g => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
 
-          <button
-            onClick={() => setShowAddGroupModal(true)}
-            className="w-9 h-9 bg-slate-900 border border-slate-800 hover:border-slate-700 text-brand-400 rounded-xl flex items-center justify-center transition-all hover:bg-slate-850 shrink-0"
-            title="Crear nuevo grupo"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-        </div>
 
         {/* Right Side: Cloud Sync & P2P QR */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -442,29 +419,54 @@ export default function App() {
             <section className="glass-premium rounded-2xl p-6 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 mb-5">
-                <div>
-                  <h2 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-                    {activeGroup.name}
-                    <button
-                      onClick={handleDeleteGroup}
-                      className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-900/60 rounded-xl transition-all"
-                      title="Eliminar este grupo y todos sus gastos"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </h2>
-                  <div className="flex flex-col gap-1 mt-1">
-                    <p className="text-slate-400 text-xs flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      Creado el {new Date(activeGroup.createdAt).toLocaleDateString()} 
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 mb-5">
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  {/* Title & Group Switcher + Quick Actions */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="relative group inline-flex items-center">
+                      <select
+                        value={activeGroupId || ''}
+                        onChange={e => setActiveGroupId(e.target.value)}
+                        className="bg-transparent hover:bg-slate-900/60 text-2xl md:text-3xl font-extrabold text-white tracking-tight pr-8 py-0.5 rounded-xl focus:outline-none cursor-pointer transition-all border border-transparent hover:border-slate-800/80 appearance-none max-w-[280px] sm:max-w-xs md:max-w-md truncate"
+                      >
+                        {groups.map(g => (
+                          <option key={g.id} value={g.id} className="bg-slate-950 text-base font-semibold text-slate-200">
+                            {g.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-5 h-5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-white transition-colors" />
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => setShowAddGroupModal(true)}
+                        className="text-slate-400 hover:text-brand-400 p-1.5 hover:bg-brand-500/10 rounded-xl transition-all"
+                        title="Crear nuevo grupo"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={handleDeleteGroup}
+                        className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-900/60 rounded-xl transition-all"
+                        title="Eliminar este grupo y todos sus gastos"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Compact Metadata Row */}
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      Creado el {new Date(activeGroup.createdAt).toLocaleDateString()}
                       {activeGroup.syncedAt && ` • Sincronizado hace poco`}
-                    </p>
+                    </span>
+
                     {activeGroup.syncCode && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-slate-500 font-mono bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-800/60">
-                          Código: {activeGroup.syncCode}
-                        </span>
+                      <div className="flex items-center gap-1 bg-slate-900/70 px-2 py-0.5 rounded-md border border-slate-800/60">
+                        <span className="text-[10px] text-slate-400 font-mono">Código: {activeGroup.syncCode}</span>
                         <button
                           onClick={async () => {
                             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -475,7 +477,7 @@ export default function App() {
                             setSyncStatus({ loading: false, error: '', success: 'Código copiado al portapapeles.' });
                             setTimeout(() => setSyncStatus(prev => ({ ...prev, success: '' })), 3000);
                           }}
-                          className="text-slate-500 hover:text-brand-400 transition-colors p-0.5 rounded-md hover:bg-brand-500/10"
+                          className="text-slate-500 hover:text-brand-400 transition-colors p-0.5 rounded"
                           title="Copiar código de sincronización"
                         >
                           <Copy className="w-3 h-3" />
@@ -485,13 +487,12 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-xs text-slate-400 font-semibold">Total Gastado</p>
-                    <p className="text-2xl font-black text-white tracking-tight">
-                      ${totalSpent.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
+                {/* Total Gastado Badge */}
+                <div className="sm:text-right shrink-0 bg-slate-900/40 border border-slate-800/60 px-4 py-2 rounded-xl self-start sm:self-center">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Gastado</p>
+                  <p className="text-xl md:text-2xl font-black text-white tracking-tight">
+                    ${totalSpent.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
                 </div>
               </div>
 
