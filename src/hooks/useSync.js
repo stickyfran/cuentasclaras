@@ -4,6 +4,12 @@ const DEFAULT_FIREBASE_BASE = 'https://yupana-117f2-default-rtdb.firebaseio.com'
 const FIREBASE_BASE_URL = (import.meta.env.VITE_FIREBASE_DB_URL || DEFAULT_FIREBASE_BASE).replace(/\/$/, '');
 const FIREBASE_DB_URL = `${FIREBASE_BASE_URL}/groups`;
 
+const SHORT_PREFIX_WORDS = [
+  'SOL', 'RIO', 'BAR', 'MAR', 'GOL', 'LUZ', 'PAZ', 'PAN', 'SUR', 'DOS',
+  'UNO', 'REY', 'VOZ', 'VAL', 'RED', 'BUS', 'PAG', 'NET', 'MAS', 'WEB',
+  'GAS', 'BOX', 'TOP', 'VIP', 'ECO', 'POP', 'MIX', 'HUB', 'TIP', 'APP'
+];
+
 const SPANISH_WORDS = [
   'ASADO', 'MATE', 'FERNET', 'TRUCO', 'EMPANADA', 'CHORIPAN', 'MILANESA', 'ALMUERZO', 
   'CENA', 'FIESTA', 'VIAJE', 'AMIGOS', 'PLAYA', 'MONTAÑA', 'PIZZA', 'CERVEZA', 
@@ -12,15 +18,11 @@ const SPANISH_WORDS = [
 ];
 
 /**
- * Generates a memorable sync code in Argentine license plate + word format:
- * NNN + MM + YY + PALABRA (e.g. KTM0726ASADO)
+ * Generates a memorable sync code:
+ * PALABRA_CORTA + MM + YY + PALABRA (e.g. SOL0726ASADO, BAR0726FERNET)
  */
 export function generateMemorableSyncCode() {
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let prefix = '';
-  for (let i = 0; i < 3; i++) {
-    prefix += letters.charAt(Math.floor(Math.random() * letters.length));
-  }
+  const prefix = SHORT_PREFIX_WORDS[Math.floor(Math.random() * SHORT_PREFIX_WORDS.length)];
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = String(now.getFullYear()).slice(-2);
