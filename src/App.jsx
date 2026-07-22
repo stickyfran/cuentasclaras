@@ -807,8 +807,8 @@ export default function App() {
 
       {/* MODAL: ADD EXPENSE */}
       {showAddExpenseModal && (
-        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 pt-4 sm:pt-6 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-          <form onSubmit={handleAddExpense} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto my-auto sm:my-0">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 pt-2 sm:pt-6 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <form onSubmit={handleAddExpense} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl max-h-[88vh] sm:max-h-[90vh] overflow-y-auto mt-1 sm:my-auto">
             <h3 className="text-xl font-bold text-slate-100 mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-brand-400" />
               Registrar Gasto
